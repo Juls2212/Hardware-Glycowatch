@@ -78,7 +78,14 @@ void loop() {
   client.publish(topic, payload.c_str(), false);
 
   Serial.println("Enviado:");
-  Serial.println(payload);
+  Serial.println("{");
+  Serial.println("  \"deviceIdentifier\": \"" + String(deviceIdentifier) + "\",");
+  Serial.println("  \"apiKey\": \"" + String(apiKey) + "\",");
+  Serial.println("  \"glucoseMgDl\": " + String(glucose) + ",");
+  Serial.println("  \"measuredAt\": \"2026-04-07T12:00:00Z\",");
+  Serial.println("  \"sourceEventId\": \"" + sourceEventId + "\",");
+  Serial.println("  \"origin\": \"esp32-mqtt\"");
+  Serial.println("}");
   Serial.println("----------------------");
 
   delay(10000); // cada 10 segundos
