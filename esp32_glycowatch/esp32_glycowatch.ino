@@ -1,10 +1,8 @@
-<<<<<<< HEAD
-=======
 #include <WiFi.h>
 #include <PubSubClient.h>
 
 const char* ssid = "ESCOBAR-2G";
-const char* password = "WIFIPASSWORD";
+const char* password = "PASSWORD-WIFI";
 
 const char* mqtt_server = "test.mosquitto.org";
 
@@ -40,12 +38,37 @@ void reconnect() {
   }
 }
 
->>>>>>> 7833e3c (ESP32 .INO FUNCIONANDO)
 void setup() {
   Serial.begin(115200);
+
+  setup_wifi();
+
+  client.setServer(mqtt_server, 1883);
 }
 
 void loop() {
-  Serial.println("ESP32 funcionando 🔥");
-  delay(1000);
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  int glucose = random(80, 200); // simulación
+
+  String payload = "{";
+  payload += "\"deviceId\": \"10\",";
+  payload += "\"glucoseMgDl\": " + String(glucose) + ",";
+  payload += "\"measuredAt\": \"2026-04-07T12:00:00Z\"";
+  payload += "}";
+
+  client.publish("glycowatch/device/10", payload.c_str());
+
+  Serial.println("Enviado:");
+  Serial.println("{");
+  Serial.println("  \"deviceId\": \"10\",");
+  Serial.println("  \"glucoseMgDl\": " + String(glucose) + ",");
+  Serial.println("  \"measuredAt\": \"2026-04-07T12:00:00Z\"");
+  Serial.println("}");
+  Serial.println("----------------------");
+
+  delay(5000);
 }
