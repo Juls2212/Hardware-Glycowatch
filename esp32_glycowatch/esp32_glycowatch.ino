@@ -1,145 +1,186 @@
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
-#include "time.h"
+#include <ArduinoJson.h>
 
-// WIFI
-const char* ssid = "ESCOBAR-2G";
-const char* password = "WIFI-PASSWORD";
+/* =========================
+   WIFI CONFIG
+========================= */
+const char* WIFI_SSID = "TU_WIFI";
+const char* WIFI_PASSWORD = "TU_PASSWORD";
 
-// MQTT
-const char* mqtt_server = "test.mosquitto.org";
-const char* topic = "glycowatch/device/ESP32-ABC-123";
+/* =========================
+   HIVEMQ CLOUD CONFIG
+========================= */
+const char* MQTT_BROKER = "478aa6d5a50348a285de276f76d74233.s1.eu.hivemq.cloud";
+const int MQTT_PORT = 8883;
 
-// DEVICE DATA
-const char* deviceIdentifier = "ESP32-015";
-const char* apiKey = "zMi8qrn1MO07U-a200g6E6fct8KzTOPNb1QqVZJdVUI";
+const char* MQTT_USERNAME = "glycowatch_backend";
+const char* MQTT_PASSWORD = "TU_PASSWORD_MQTT";
 
-// BOTÓN (BOOT)
-#define BUTTON_PIN 0
+/* =========================
+   MQTT TOPIC
+========================= */
+const char* MQTT_TOPIC =
+"glycowatch/devices/esp32-001/measurements";
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+/* =========================
+   CLIENTS
+========================= */
+WiFiClientSecure secureClient;
+PubSubClient mqttClient(secureClient);
 
-// contador
-int counter = 0;
+/* =========================
+   TIMERS
+========================= */
+unsigned long lastPublish = 0;
+const long publishInterval = 5000;
 
-// Hora actual 
-String obtenerTiempoISO() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    return "2026-01-01T00:00:00Z"; // fallback
-  }
+/* =========================
+   WIFI CONNECTION
+========================= */
+void connectWiFi() {
 
-  char buffer[30];
-  strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
-  return String(buffer);
-}
+  Serial.println();
+  Serial.println("==================================");
+  Serial.println("CONECTANDO A WIFI...");
+  Serial.println("==================================");
 
-void setup_wifi() {
-  Serial.println("Conectando a WiFi...");
-  WiFi.begin(ssid, password);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
     Serial.print(".");
+    delay(500);
   }
 
-  Serial.println("\nWiFi conectado!");
+  Serial.println();
+  Serial.println("WIFI CONECTADO");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
 }
 
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("Conectando a MQTT...");
+/* =========================
+   MQTT CONNECTION
+========================= */
+void connectMQTT() {
 
-    if (client.connect("ESP32Client123")) {
-      Serial.println("conectado!");
+  while (!mqttClient.connected()) {
+
+    Serial.println();
+    Serial.println("==================================");
+    Serial.println("CONECTANDO A MQTT...");
+    Serial.println("==================================");
+
+    String clientId = "ESP32Client-";
+    clientId += String(random(0xffff), HEX);
+
+    bool connected = mqttClient.connect(
+      clientId.c_str(),
+      MQTT_USERNAME,
+      MQTT_PASSWORD
+    );
+
+    if (connected) {
+
+      Serial.println("MQTT CONECTADO");
+      Serial.print("BROKER: ");
+      Serial.println(MQTT_BROKER);
+
     } else {
-      Serial.print("fallo, rc=");
-      Serial.print(client.state());
-      Serial.println(" intentando de nuevo...");
-      delay(2000);
+
+      Serial.print("ERROR MQTT -> rc=");
+      Serial.println(mqttClient.state());
+
+      Serial.println("REINTENTANDO EN 5 SEGUNDOS...");
+      delay(5000);
     }
   }
 }
 
-// ENVIAR DATOS
-void enviarMedicion() {
-  counter++;
+/* =========================
+   PUBLISH JSON
+========================= */
+void publishMeasurement() {
 
-  int glucose;
-  int tipo = counter % 4;
+  StaticJsonDocument<256> doc;
 
-  if (tipo == 0 || tipo == 1) {
-    glucose = random(80, 200); //Normal
-  } else if (tipo == 2) {
-    glucose = random(200, 500); //Alta
+  // Mantén aquí tu JSON actual
+  doc["deviceId"] = "esp32-001";
+  doc["glucose"] = random(80, 140);
+  doc["heartRate"] = random(60, 100);
+  doc["spo2"] = random(94, 100);
+  doc["timestamp"] = millis();
+
+  char payload[256];
+  serializeJson(doc, payload);
+
+  bool success = mqttClient.publish(MQTT_TOPIC, payload);
+
+  if (success) {
+
+    Serial.println();
+    Serial.println("MEDICION PUBLICADA");
+    Serial.print("TOPIC: ");
+    Serial.println(MQTT_TOPIC);
+
+    Serial.print("PAYLOAD: ");
+    Serial.println(payload);
+
   } else {
-    glucose = random(50, 79); //Baja
+
+    Serial.println();
+    Serial.println("ERROR PUBLICANDO MEDICION");
   }
-
-  String sourceEventId = "esp32-" + String(counter);
-  String tiempoActual = obtenerTiempoISO();
-
-  String payload = "{";
-  payload += "\"deviceIdentifier\":\"" + String(deviceIdentifier) + "\",";
-  payload += "\"apiKey\":\"" + String(apiKey) + "\",";
-  payload += "\"glucoseMgDl\":" + String(glucose) + ",";
-  payload += "\"measuredAt\":\"" + tiempoActual + "\",";
-  payload += "\"sourceEventId\":\"" + sourceEventId + "\",";
-  payload += "\"origin\":\"esp32-mqtt\"";
-  payload += "}";
-
-  client.publish(topic, payload.c_str(), false);
-
-
-  Serial.println("Enviado:");
-  Serial.println("{");
-  Serial.println("  \"deviceIdentifier\": \"" + String(deviceIdentifier) + "\",");
-  Serial.println("  \"apiKey\": \"" + String(apiKey) + "\",");
-  Serial.println("  \"glucoseMgDl\": " + String(glucose) + ",");
-  Serial.println("  \"measuredAt\": \"" + tiempoActual + "\",");
-  Serial.println("  \"sourceEventId\": \"" + sourceEventId + "\",");
-  Serial.println("  \"origin\": \"esp32-mqtt\"");
-  Serial.println("}");
-  Serial.println("----------------------");
 }
 
+/* =========================
+   SETUP
+========================= */
 void setup() {
+
   Serial.begin(115200);
+  delay(1000);
 
-  setup_wifi();
+  connectWiFi();
 
-  // Sincronizar hora
-  configTime(0, 0, "pool.ntp.org");
+  /*
+    IMPORTANTE:
+    Para pruebas rápidas usamos:
+  */
+  secureClient.setInsecure();
 
-  client.setServer(mqtt_server, 1883);
-
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
 }
 
+/* =========================
+   LOOP
+========================= */
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
 
-  // BOTÓN
-  static bool lastState = HIGH;
-  bool currentState = digitalRead(BUTTON_PIN);
+  // Reconexión WiFi
+  if (WiFi.status() != WL_CONNECTED) {
 
-  if (currentState == LOW && lastState == HIGH) {
-    Serial.println("Botón presionado 🚀");
-    enviarMedicion();
-    delay(300);
+    Serial.println();
+    Serial.println("WIFI DESCONECTADO");
+    connectWiFi();
   }
 
-  lastState = currentState;
+  // Reconexión MQTT
+  if (!mqttClient.connected()) {
 
-  // Envio automatico sin bloqueo
-  static unsigned long lastSend = 0;
+    connectMQTT();
+  }
 
-  if (millis() - lastSend > 1200000) {
-    enviarMedicion();
-    lastSend = millis();
+  mqttClient.loop();
+
+  // Publicar medición cada 5 segundos
+  unsigned long now = millis();
+
+  if (now - lastPublish >= publishInterval) {
+
+    lastPublish = now;
+
+    publishMeasurement();
   }
 }
