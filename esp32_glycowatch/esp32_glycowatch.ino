@@ -110,7 +110,16 @@ void connectMQTT() {
 void publishMeasurement() {
   counter++;
 
-  int glucose = 120;
+  int glucose;
+  int tipo = counter % 4;
+
+  if (tipo == 0 || tipo == 1) {
+    glucose = random(80, 200);
+  } else if (tipo == 2) {
+    glucose = random(200, 500);
+  } else {
+    glucose = random(50, 79);
+  }
 
   String sourceEventId = "esp32-" + String(counter);
   String tiempoActual = obtenerTiempoISO();
