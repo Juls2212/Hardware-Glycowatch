@@ -32,9 +32,16 @@ const char* MQTT_TOPIC =
 const char* deviceIdentifier = "ESP32-111";
 const char* apiKey = "fNnCRHetsPSiViBohecT4Hawu7E7eKpjqaq-w78vPSM";
 
+/* =========================
+   BUTTON
+========================= */
+#define BUTTON_PIN 0
+
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 
+unsigned long lastPublish = 0;
+const long publishInterval = 60000;
 int counter = 0;
 
 String obtenerTiempoISO() {
@@ -100,7 +107,6 @@ void connectMQTT() {
     } else {
       Serial.print("ERROR MQTT rc=");
       Serial.println(mqttClient.state());
-
       Serial.println("REINTENTANDO EN 5 SEGUNDOS...");
       delay(5000);
     }
@@ -133,13 +139,30 @@ void publishMeasurement() {
   payload += "\"origin\":\"esp32-mqtt\"";
   payload += "}";
 
-  Serial.println();
-  Serial.println("PAYLOAD GENERADO:");
-  Serial.println(payload);
+  bool enviado = mqttClient.publish(MQTT_TOPIC, payload.c_str());
+
+  if (enviado) {
+    Serial.println();
+    Serial.println("==================================");
+    Serial.println("MEDICION PUBLICADA");
+    Serial.println("==================================");
+    Serial.print("TOPIC: ");
+    Serial.println(MQTT_TOPIC);
+    Serial.print("PAYLOAD: ");
+    Serial.println(payload);
+  } else {
+    Serial.println();
+    Serial.println("ERROR PUBLICANDO MEDICION");
+  }
+
+  Serial.println("----------------------------------");
 }
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   connectWiFi();
 
@@ -154,10 +177,6 @@ void setup() {
 
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
 
-  connectMQTT();
-
-  publishMeasurement();
-
   Serial.println();
   Serial.println("==================================");
   Serial.println("ESP32 LISTO!");
@@ -165,5 +184,40 @@ void setup() {
 }
 
 void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println();
+    Serial.println("WIFI DESCONECTADO");
+    connectWiFi();
+  }
+
+  if (!mqttClient.connected()) {
+    connectMQTT();
+  }
+
   mqttClient.loop();
+
+  static bool lastState = HIGH;
+  bool currentState = digitalRead(BUTTON_PIN);
+
+  if (currentState == LOW && lastState == HIGH) {
+    Serial.println();
+    Serial.println("BOTON PRESIONADO");
+
+    publishMeasurement();
+
+    delay(300);
+  }
+
+  lastState = currentState;
+
+  unsigned long now = millis();
+
+  if (now - lastPublish >= publishInterval) {
+    lastPublish = now;
+
+    Serial.println();
+    Serial.println("ENVIO AUTOMATICO");
+
+    publishMeasurement();
+  }
 }
