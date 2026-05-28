@@ -42,12 +42,44 @@ void connectWiFi() {
   Serial.println(WiFi.localIP());
 }
 
+void connectMQTT() {
+  while (!mqttClient.connected()) {
+    Serial.println();
+    Serial.println("==================================");
+    Serial.println("CONECTANDO A MQTT...");
+    Serial.println("==================================");
+
+    String clientId = "ESP32Client-";
+    clientId += String(random(0xffff), HEX);
+
+    bool connected = mqttClient.connect(
+      clientId.c_str(),
+      MQTT_USERNAME,
+      MQTT_PASSWORD
+    );
+
+    if (connected) {
+      Serial.println("MQTT CONECTADO!");
+    } else {
+      Serial.print("ERROR MQTT rc=");
+      Serial.println(mqttClient.state());
+
+      Serial.println("REINTENTANDO EN 5 SEGUNDOS...");
+      delay(5000);
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
   connectWiFi();
+
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+
+  connectMQTT();
 }
 
 void loop() {
-
+  mqttClient.loop();
 }
