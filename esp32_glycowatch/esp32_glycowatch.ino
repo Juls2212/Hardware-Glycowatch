@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <time.h>
 
 /* =========================
    WIFI CONFIG
@@ -21,6 +22,26 @@ const char* MQTT_PASSWORD = "glycoProyecto2212";
 
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
+
+String obtenerTiempoISO() {
+  struct tm timeinfo;
+
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("ERROR OBTENIENDO HORA");
+    return "2026-01-01T00:00:00-05:00";
+  }
+
+  char buffer[35];
+
+  strftime(
+    buffer,
+    sizeof(buffer),
+    "%Y-%m-%dT%H:%M:%S-05:00",
+    &timeinfo
+  );
+
+  return String(buffer);
+}
 
 void connectWiFi() {
   Serial.println();
@@ -76,6 +97,13 @@ void setup() {
   Serial.begin(115200);
 
   connectWiFi();
+
+  configTime(
+    -5 * 3600,
+    0,
+    "pool.ntp.org",
+    "time.nist.gov"
+  );
 
   secureClient.setInsecure();
 
