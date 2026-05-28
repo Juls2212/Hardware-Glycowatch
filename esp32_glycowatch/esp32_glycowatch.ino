@@ -60,6 +60,8 @@ void connectMQTT() {
 
     if (connected) {
       Serial.println("MQTT CONECTADO!");
+      Serial.print("BROKER: ");
+      Serial.println(MQTT_BROKER);
     } else {
       Serial.print("ERROR MQTT rc=");
       Serial.println(mqttClient.state());
@@ -75,9 +77,16 @@ void setup() {
 
   connectWiFi();
 
+  secureClient.setInsecure();
+
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
 
   connectMQTT();
+
+  Serial.println();
+  Serial.println("==================================");
+  Serial.println("ESP32 LISTO!");
+  Serial.println("==================================");
 }
 
 void loop() {
