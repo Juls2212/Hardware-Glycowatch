@@ -20,8 +20,22 @@ const int MQTT_PORT = 8883;
 const char* MQTT_USERNAME = "glycowatch_backend";
 const char* MQTT_PASSWORD = "glycoProyecto2212";
 
+/* =========================
+   MQTT TOPIC
+========================= */
+const char* MQTT_TOPIC =
+"glycowatch/devices/esp32-001/measurements";
+
+/* =========================
+   DEVICE DATA
+========================= */
+const char* deviceIdentifier = "ESP32-111";
+const char* apiKey = "fNnCRHetsPSiViBohecT4Hawu7E7eKpjqaq-w78vPSM";
+
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
+
+int counter = 0;
 
 String obtenerTiempoISO() {
   struct tm timeinfo;
@@ -93,6 +107,28 @@ void connectMQTT() {
   }
 }
 
+void publishMeasurement() {
+  counter++;
+
+  int glucose = 120;
+
+  String sourceEventId = "esp32-" + String(counter);
+  String tiempoActual = obtenerTiempoISO();
+
+  String payload = "{";
+  payload += "\"deviceIdentifier\":\"" + String(deviceIdentifier) + "\",";
+  payload += "\"apiKey\":\"" + String(apiKey) + "\",";
+  payload += "\"glucoseMgDl\":" + String(glucose) + ",";
+  payload += "\"measuredAt\":\"" + tiempoActual + "\",";
+  payload += "\"sourceEventId\":\"" + sourceEventId + "\",";
+  payload += "\"origin\":\"esp32-mqtt\"";
+  payload += "}";
+
+  Serial.println();
+  Serial.println("PAYLOAD GENERADO:");
+  Serial.println(payload);
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -110,6 +146,8 @@ void setup() {
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
 
   connectMQTT();
+
+  publishMeasurement();
 
   Serial.println();
   Serial.println("==================================");
